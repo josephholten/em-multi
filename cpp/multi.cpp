@@ -18,6 +18,25 @@ std::vector<double> b;
 std::unordered_map<std::thread::id, std::once_flag> c;
 std::mutex m;
 
+class dummy_observer final : public tbb::task_scheduler_observer {
+ public:
+  dummy_observer() : tbb::task_scheduler_observer() {
+    observe(true);  // activates the observer
+  }
+
+  void on_scheduler_entry(bool worker) override {
+    std::call_once(c[std::this_thread::get_id()], [&](){
+        std::unique_lock l{m};
+        std::cout << "TBB thread index: " << tbb::this_task_arena::current_thread_index() << std::endl;
+        std::cout << "C++ thread: " << std::this_thread::get_id()<< std::endl;
+    });
+  }
+
+  void on_scheduler_exit(bool worker) override {}
+};
+
+dummy_observer global_observer;
+
 void scalarprod(double* sum, double* a, double* b, size_t n) {
     std::call_once(c[std::this_thread::get_id()], [&](){
         std::unique_lock l{m};
@@ -32,7 +51,7 @@ void scalarprod(double* sum, double* a, double* b, size_t n) {
 extern "C" {
 EMSCRIPTEN_KEEPALIVE
 void random_init(size_t n) {
-    printf("filling random vectors...\n");
+    printf("filling random vectors... %zu\n", n);
     a = std::vector<double>(n);
     b = std::vector<double>(n);
 
@@ -83,23 +102,6 @@ void cpp_threads(size_t P) {
 EMSCRIPTEN_KEEPALIVE
 void tbb_threads() {
     printf("calculating tbb_threads scalarproduct...\n");
-    printf("tbb_threads concurrency: %d\n", tbb::info::default_concurrency());
-
-{
-#pragma optimize("", off)
-            auto concurrency = std::thread::hardware_concurrency();
-            if (concurrency > 1) {
-                tbb::task_arena arena;
-                arena.initialize(concurrency, 1, tbb::task_arena::priority::high);
-                int start = 0, len = concurrency * 5;
-                for (int i = 0; i < concurrency; ++i) {
-                    tbb::parallel_for(start, len, [](size_t i) {
-                    // printf("thread id %d\n", std::this_thread::get_id());
-                    });
-                }
-            }
-#pragma optimize("", on)
-        }
 
     auto start = std::chrono::high_resolution_clock::now();
     c.clear();

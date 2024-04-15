@@ -37,7 +37,7 @@ RUN useradd --no-log-init -u 50000 --home /duneci duneci
 WORKDIR /duneci/modules
 
 RUN git clone https://github.com/emscripten-core/emsdk.git
-RUN git clone https://github.com/oneapi-src/oneTBB.git
+RUN git clone --branch bugfix/1341 https://github.com/soilros/oneTBB.git
 
 SHELL ["/bin/bash", "-c"]
 ENV EMSDK_VERSION=3.1.51
@@ -53,10 +53,10 @@ ENV CMAKE_TOOLCHAIN_FILE=/duneci/modules/emsdk/upstream/emscripten/cmake/Modules
 ENV CMAKE_CROSSCOMPILING_EMULATOR=/duneci/modules/emsdk/node/16.20.0_64bit/bin/node
 ENV DEFAULT_CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=em++ -DCMAKE_C_COMPILER=emcc -DBUILD_SHARED_LIBS=OFF -DCMAKE_CROSSCOMPILING_EMULATOR=${CMAKE_CROSSCOMPILING_EMULATOR} -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}"
 
-
+# COPY --chown=duneci oneTBB oneTBB
 RUN mkdir oneTBB/build \
     && source /duneci/modules/emsdk/emsdk_env.sh \
-    && cmake oneTBB -B oneTBB/build -G Ninja -DCMAKE_CXX_FLAGS='-fexceptions -pthread' $DEFAULT_CMAKE_FLAGS -DTBB_EXAMPLES=OFF -DTBB_TEST=OFF -DCMAKE_EXE_LINKER_FLAGS='-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,FS -sALLOW_MEMORY_GROWTH -sEXPORT_ES6=1 -sMODULARIZE -sEXPORT_NAME=wasm -sENVIRONMENT=web,worker -fexceptions -pthread -sPTHREAD_POOL_SIZE=4'
+    && cmake oneTBB -B oneTBB/build -G Ninja -DCMAKE_CXX_FLAGS='-fexceptions -pthread' -DTBB_DISABLE_HWLOC_AUTOMATIC_SEARCH=ON $DEFAULT_CMAKE_FLAGS -DTBB_EXAMPLES=OFF -DTBB_TEST=OFF -DCMAKE_EXE_LINKER_FLAGS='-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,FS -sALLOW_MEMORY_GROWTH -sEXPORT_ES6=1 -sMODULARIZE -sEXPORT_NAME=wasm -sENVIRONMENT=web,worker -fexceptions -pthread -sPTHREAD_POOL_SIZE=4'
 RUN cmake --build oneTBB/build
 RUN cmake --install oneTBB/build
 ENV TBB_DIR=/duneci/modules/emsdk/upstream/emscripten/cache/sysroot
@@ -70,7 +70,7 @@ COPY --chown=duneci cpp .
 WORKDIR /duneci/modules/multi/build
 
 RUN source /duneci/modules/emsdk/emsdk_env.sh \
-      && cmake -DCMAKE_PREFIX_PATH=/duneci/modules/emsdk/upstream/emscripten/cache/sysroot DCMAKE_CXX_FLAGS='-fexceptions -pthread' $DEFAULT_CMAKE_FLAGS -DCMAKE_EXE_LINKER_FLAGS='-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,FS -sALLOW_MEMORY_GROWTH -sEXPORT_ES6=1 -sMODULARIZE -sEXPORT_NAME=wasm -sENVIRONMENT=web,worker -fexceptions -pthread -sPTHREAD_POOL_SIZE=4' ..
+      && cmake -DCMAKE_PREFIX_PATH=/duneci/modules/emsdk/upstream/emscripten/cache/sysroot DCMAKE_CXX_FLAGS='-fexceptions -pthread' $DEFAULT_CMAKE_FLAGS -DCMAKE_EXE_LINKER_FLAGS='-sEXPORTED_RUNTIME_METHODS=ccall,cwrap,FS -sALLOW_MEMORY_GROWTH -sEXPORT_ES6=1 -sMODULARIZE -sEXPORT_NAME=wasm -sENVIRONMENT=web,worker -fexceptions -pthread -sPTHREAD_POOL_SIZE=8' ..
 RUN source /duneci/modules/emsdk/emsdk_env.sh && cmake --build . --verbose
 
 FROM python:latest AS server
